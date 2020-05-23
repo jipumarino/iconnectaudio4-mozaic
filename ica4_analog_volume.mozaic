@@ -1,5 +1,5 @@
 @OnLoad
-  ShowLayout 3
+  ShowLayout 0
   for knob = 0 to 3
     LabelKnob knob, {Input }, knob+1
   endfor
@@ -10,33 +10,27 @@
 
 @OnKnobChange
   if LastKnob >= 0 and LastKnob <= 3
-    value = GetKnobValue LastKnob
     mixerIndex = LastKnob + 1
-    data = [0x00,0x01,0x73,0x7E,0x00,0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x4B,0x00,0x11,0x01,0x00,0x03,0x01,mixerIndex,0x06,0x1F,0x00,value,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00]
-    SendSysex data, 35, 1, 4
+    mixerValue = GetKnobValue LastKnob
+    Call @ICA4SetAnalogInputVolume
   endif
 @End
 
+@OnPadDown
+  if LastPad >= 0 and LastPad <= 3
+    mixerIndex = LastPad + 1
+    muteValue = NOT (PadState LastPad)
+    LatchPad LastPad, muteValue
+    call @ICA4SetAnalogInputMute
+  endif
+@End
 
-// Sysex data explanation
-//
-// 0x00,0x01,0x73,0x7E               header: iConnectivity's manufacturer ID and message class
-// 0x00,0x07                         iCA4+ product ID (the body starts here)
-// 0x00,0x00,0x00,0x00,0x00          serial number (can be all zeroes if there's just one interface connected)
-// 0x00,0x00                         transaction ID (can be all zeroes if we don't care about replies)
-// 0x40,0x4B                         command flag (write) and ID (SetAudioControlDetailValue)
-// 0x00,0x11                         number of bytes that follow, which contain command data (17 in decimal)
-// 0x01                              command version number (1)
-// 0x00,0x03                         audio port ID (3)
-// 0x01                              controller number (1)
-// mixerIndex                        detail number (1-4)
-// 0x06                              controller type (6 = feature)
-// 0x01                              which values are included; only first bit is set, which corresponds to volume & trim data
-//                                   this is important because I'm explicitly not modifying muting, hi-z and, more importantly, phantom power
-// 0x00,value,0x00                   volume control value
-// 0x00,0x00,0x00                    trim control value
-// 0x00                              mute control value (unmuted)
-// 0x00                              phantom power value (off)
-// 0x00                              high impedance value (off)
-// 0x00                              stereo link value (off)
-// 0x00                              checksum (Mozaic will replace this value before sending)
+@ICA4SetAnalogInputVolume
+  data = [0x00,0x01,0x73,0x7E,0x00,0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x4B,0x00,0x0D,0x01,0x00,0x03,0x01,mixerIndex,0x06,0x01,0x00,mixerValue,0x00,0x00,0x00,0x00,0x00]
+  SendSysex data, 31, 1, 4
+@End
+
+@ICA4SetAnalogInputMute
+  data = [0x00,0x01,0x73,0x7E,0x00,0x07,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x4B,0x00,0x08,0x01,0x00,0x03,0x01,mixerIndex,0x06,0x02,muteValue,0x00]
+  SendSysex data, 26, 1, 4
+@End
